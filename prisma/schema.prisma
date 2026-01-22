@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// User model stores all registered users in the system
+model User {
+  id           String    @id @default(uuid())
+  name         String
+  email        String    @unique
+  passwordHash String    @map("password_hash")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  
+  // Relations: a user can own many projects and be assigned to many tasks
+  ownedProjects Project[]
+  assignedTasks Task[]
+  exports       Export[]
+  
+  @@map("users")
+}
+
+// Project model represents individual projects that contain tasks
+model Project {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  ownerId     String   @map("owner_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+  
+  // Each project belongs to one user (owner)
+  owner   User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  tasks   Task[]
+  exports Export[]
+  
+  @@index([ownerId])
+  @@index([createdAt])
+  @@map("projects")
+}
+
+// Task model represents individual tasks within projects
+model Task {
+  id          String       @id @default(uuid())
+  projectId   String       @map("project_id")
+  title       String
+  description String?
+  status      TaskStatus   @default(TODO)
+  priority    TaskPriority @default(MEDIUM)
+  assignedTo  String?      @map("assigned_to")
+  dueDate     DateTime?    @map("due_date")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  
+  // Relations: each task belongs to one project and can be assigned to one user
+  project  Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assignee User?   @relation(fields: [assignedTo], references: [id], onDelete: SetNull)
+  
+  @@index([projectId, status])
+  @@index([assignedTo])
+  @@index([createdAt])
+  @@index([dueDate])
+  @@map("tasks")
+}
+
+// Export model tracks background export jobs for projects
+model Export {
+  id          String       @id @default(uuid())
+  projectId   String       @map("project_id")
+  userId      String       @map("user_id")
+  status      ExportStatus @default(PENDING)
+  filePath    String?      @map("file_path")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  completedAt DateTime?    @map("completed_at")
+  
+  // Each export belongs to a project and user
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("exports")
+}
+
+// Enum for task status
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+// Enum for task priority levels
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+// Enum for export job status
+enum ExportStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
